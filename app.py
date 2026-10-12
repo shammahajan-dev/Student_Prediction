@@ -1,31 +1,58 @@
-# app.py
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, render_template
 import pickle
 import numpy as np
+import os
 
 # Load the trained model
-model_path = 'Model.pkl'
-with open(model_path, 'rb') as file:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(BASE_DIR, "Model.pkl")
+
+with open(model_path, "rb") as file:
     model = pickle.load(file)
 
 app = Flask(__name__)
 
-@app.route('/')
+
+@app.route("/")
 def home():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/predict', methods=['POST'])
+
+@app.route("/predict", methods=["POST"])
 def predict():
-    # Extract data from form
-    int_features = [int(x) for x in request.form.values()]
-    final_features = [np.array(int_features)]
-    
-    # Make prediction
-    prediction = model.predict(final_features)
-    output = 'Placed' if prediction[0] == 1 else 'Not Placed'
+    try:
+        # Extract input values from the form
+        int_features = [
+            int(value) for value in request.form.values()
+        ]
 
-    return render_template('index.html', prediction_text='Prediction: {}'.format(output))
+        # Prepare features for prediction
+        final_features = np.array(int_features).reshape(1, -1)
+
+        # Predict using the trained model
+        prediction = model.predict(final_features)
+
+        output = "Placed" if prediction[0] == 1 else "Not Placed"
+
+        return render_template(
+            "index.html",
+            prediction_text=f"Prediction: {output}"
+        )
+
+    except (ValueError, TypeError) as e:
+        app.logger.exception("Invalid prediction input")
+        return "Invalid input. Please check the entered values.", 400
+
+    except Exception:
+        app.logger.exception("Prediction failed")
+        return "Prediction failed. Please check the application logs.", 500
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False,
+        use_reloader=False
+    )
